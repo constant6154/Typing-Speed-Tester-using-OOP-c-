@@ -6,7 +6,10 @@
 #include <cstdlib>
 #include <limits>
 #include <iomanip>
-#include <algorithm> // For transform
+#include <algorithm>
+#include <ctime>
+#include <sstream>
+#include <conio.h> // For non-blocking input (Windows only)
 
 using namespace std;
 
@@ -65,7 +68,7 @@ private:
             }
             file.close();
         } else {
-            cerr << "Error: Unable to save leaderboard data.\n";
+            cout << "Error: Unable to save leaderboard!" << endl;
         }
     }
 
@@ -73,13 +76,16 @@ private:
         leaderboard.clear();
         ifstream file(leaderboardFile);
         if (file.is_open()) {
-            LeaderboardEntry entry;
-            while (file >> entry.name >> entry.wpm >> entry.accuracy) {
+            string line;
+            while (getline(file, line)) {
+                stringstream ss(line);
+                LeaderboardEntry entry;
+                ss >> entry.name >> entry.wpm >> entry.accuracy;
                 leaderboard.push_back(entry);
             }
             file.close();
         } else {
-            cerr << "Error: Unable to load leaderboard data.\n";
+            cout << "No previous leaderboard found, starting fresh.\n";
         }
     }
 
@@ -88,126 +94,90 @@ public:
         loadLeaderboard();
     }
 
-    void startTest(const string& sentence, const string& userName) {
-        cout << "\nType the following sentence:\n";
-        cout << "\"" << sentence << "\"\n";
-
-        // Start timing
-        auto start = chrono::high_resolution_clock::now();
-
-        // Get user input
-        string userInput;
-        cin.ignore(numeric_limits<streamsize>::max(), '\n'); // Clear input buffer
-        getline(cin, userInput);
-
-        // End timing
-        auto end = chrono::high_resolution_clock::now();
-        chrono::duration<double> elapsed = end - start;
-
-        // Calculate WPM
-        int wordCount = countWords(sentence);
-        double timeInMinutes = elapsed.count() / 60.0;
-        double wpm = wordCount / timeInMinutes;
-
-        // Calculate Accuracy
-        double accuracy = calculateAccuracy(sentence, userInput);
-
-        // Update Leaderboard
-        updateLeaderboard(userName, wpm, accuracy);
-
-        // Show Results
-        cout << fixed << setprecision(2);
-        cout << "\nTyping Speed: " << wpm << " WPM\n";
-        cout << "Accuracy: " << accuracy << "%\n";
-    }
-
     void displayLeaderboard() {
-        cout << "\n--- Leaderboard ---\n";
-        cout << setw(15) << "Name"
-             << setw(10) << "WPM"
-             << setw(12) << "Accuracy\n";
-        cout << "--------------------------------------\n";
+        cout << "\n===== Leaderboard =====\n";
+        if (leaderboard.empty()) {
+            cout << "No entries yet! Try completing a test.\n";
+            return;
+        }
         for (const auto& entry : leaderboard) {
-            cout << setw(15) << entry.name
-                 << setw(10) << entry.wpm
-                 << setw(10) << entry.accuracy << "%\n";
+            cout << "Name: " << entry.name << " | WPM: " << entry.wpm << " | Accuracy: " << entry.accuracy << "%\n";
         }
-    }
-
-private:
-    int countWords(const string& sentence) {
-        if (sentence.empty()) return 0;
-        int count = 1;
-        for (char ch : sentence) {
-            if (ch == ' ') count++;
-        }
-        return count;
-    }
-
-    double calculateAccuracy(const string& original, const string& typed) {
-        string originalLower = original, typedLower = typed;
-        transform(originalLower.begin(), originalLower.end(), originalLower.begin(), ::tolower);
-        transform(typedLower.begin(), typedLower.end(), typedLower.begin(), ::tolower);
-
-        int correct = 0;
-        int total = originalLower.size();
-        for (size_t i = 0; i < originalLower.size() && i < typedLower.size(); ++i) {
-            if (originalLower[i] == typedLower[i]) correct++;
-        }
-        return (double(correct) / total) * 100;
     }
 
     void updateLeaderboard(const string& name, double wpm, double accuracy) {
         for (auto& entry : leaderboard) {
             if (entry.name == name) {
-                if (wpm > entry.wpm) entry.wpm = wpm;
-                if (accuracy > entry.accuracy) entry.accuracy = accuracy;
+                entry.wpm = max(entry.wpm, wpm);
+                entry.accuracy = max(entry.accuracy, accuracy);
                 saveLeaderboard();
                 return;
             }
         }
-        leaderboard.push_back({name, wpm, accuracy});
+        LeaderboardEntry newEntry = {name, wpm, accuracy};
+        leaderboard.push_back(newEntry);
         saveLeaderboard();
+    }
+
+    void startTest(const string& sentence, const string& userName, bool isTimed = false, int timeLimit = 0) {
+        cout << "\nType the following:\n\"" << sentence << "\"\n";
+        auto start = chrono::high_resolution_clock::now();
+        cin.ignore();
+        string userInput;
+        if (isTimed) {
+            cout << "You have " << timeLimit << " seconds. Start typing:\n";
+            auto endTime = start + chrono::seconds(timeLimit);
+            while (chrono::high_resolution_clock::now() < endTime) {
+                if (_kbhit()) {
+                    char ch = _getch();
+                    if (ch == '\r') break;
+                    userInput += ch;
+                    cout << ch;
+                }
+            }
+            cout << "\nTime's up!\n";
+        } else {
+            getline(cin, userInput);
+        }
+        auto end = chrono::high_resolution_clock::now();
+        chrono::duration<double> elapsed = end - start;
+        double timeInMinutes = elapsed.count() / 60.0;
+        double wpm = count(sentence.begin(), sentence.end(), ' ') / timeInMinutes;
+
+        int correct = 0;
+        for (size_t i = 0; i < min(sentence.size(), userInput.size()); ++i) {
+            if (sentence[i] == userInput[i]) correct++;
+        }
+        double accuracy = (double(correct) / sentence.size()) * 100;
+
+        updateLeaderboard(userName, wpm, accuracy);
+        cout << fixed << setprecision(2) << "\nWPM: " << wpm << "\nAccuracy: " << accuracy << "%\n";
     }
 };
 
 int main() {
+    srand(time(0));
     SentenceGenerator generator;
     TypingTester tester;
-
-    int choice;
     string userName;
+    int choice, difficulty, timeLimit;
 
     cout << "Enter your name: ";
     cin >> userName;
-
     do {
-        cout << "\n--- Typing Speed Tester ---\n";
-        cout << "1. Start Test (Easy)\n";
-        cout << "2. Start Test (Medium)\n";
-        cout << "3. Start Test (Hard)\n";
-        cout << "4. View Leaderboard\n";
-        cout << "5. Exit\n";
-        cout << "Enter your choice: ";
+        cout << "\n1. Typing Test (Easy, Medium, Hard)\n2. Typing Test (Timed - Custom Time)\n3. View Leaderboard\n4. Exit\nEnter choice: ";
         cin >> choice;
-
-        if (cin.fail()) {
-            cin.clear(); // Clear error flag
-            cin.ignore(numeric_limits<streamsize>::max(), '\n'); // Ignore invalid input
-            cout << "Invalid input! Please enter a number between 1 and 5.\n";
-            continue;
-        }
-
-        if (choice >= 1 && choice <= 3) {
-            string sentence = generator.getSentence(choice);
-            tester.startTest(sentence, userName);
-        } else if (choice == 4) {
+        if (choice == 1) {
+            cout << "Choose difficulty (1 - Easy, 2 - Medium, 3 - Hard): ";
+            cin >> difficulty;
+            tester.startTest(generator.getSentence(difficulty), userName);
+        } else if (choice == 2) {
+            cout << "Enter time limit in seconds: ";
+            cin >> timeLimit;
+            tester.startTest(generator.getSentence(2), userName, true, timeLimit);
+        } else if (choice == 3) {
             tester.displayLeaderboard();
-        } else if (choice != 5) {
-            cout << "Invalid choice! Please try again.\n";
         }
-    } while (choice != 5);
-
-    cout << "Thank you for using the Typing Speed Tester!\n";
+    } while (choice != 4);
     return 0;
 }
