@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <ctime>
 #include <sstream>
-#include <conio.h> // For non-blocking input (Windows only)
+#include <conio.h> 
 
 using namespace std;
 
@@ -22,19 +22,19 @@ struct LeaderboardEntry {
 class SentenceGenerator {
 private:
     vector<string> easySentences = {
-        "The cat sits on the mat.",
-        "I like to eat apples.",
-        "C++ is fun to learn."
+        "You decide your own level of involvement.",
+        "Losing all hope was freedom.",
+        "La familia es todo."
     };
     vector<string> mediumSentences = {
         "Programming requires logical thinking and practice.",
-        "The quick brown fox jumps over the lazy dog.",
-        "Typing fast improves productivity."
+        "The first rule of Fight Club is you do not talk about Fight Club.",
+        "Death is so final, whereas life is full of possibilities."
     };
     vector<string> hardSentences = {
-        "C++ templates provide a powerful mechanism for generic programming.",
-        "Encapsulation and inheritance are key OOP principles.",
-        "Multithreading in C++ can improve performance significantly."
+        "Never forget who you are. The rest of the world will not. Wear it like armor, and it can never be used to hurt you.",
+        "When you tear out a man's tongue, you are not proving him a liar, you are only telling the world that you fear what he might say.",
+        "I have a tender spot in my heart for cripples, bastards, and broken things."
     };
 
 public:
